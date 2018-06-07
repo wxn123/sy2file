@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+# -*- coding=utf-8 -*-
+
+import socket
+import threading
+import time
+import sys
+import os
+import struct
+
+
+def socket_service():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#创建TCP Socket（套接字是不同主机之间进程进行双向通信的端点）
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)#设置给定套接字选项的值
+        s.bind(('192.168.236.129', 6666))#将服务端socket绑定到指定的地址和端口
+        s.listen(10)#开始监听
+    except socket.error as msg:
+        print msg
+        sys.exit(1)
+    print 'Waiting connection...'
+
+#进入循环，不断接受客户端的连接请求
+    while 1:
+        conn, addr = s.accept()#接受TCP连接，并返回新的套接字（conn是新的套接字对象，）与IP地址（连接客户端的地址）
+        t = threading.Thread(target=deal_data, args=(conn, addr))#定义多线程，第一个是线程函数变量（需要线程去执行的方法名，第二个是线程执行方法接受的参数（新的套接字对象、地址））
+        t.start()#启动刚刚创建的进程
+
+def deal_data(conn, addr):
+    print 'Accept new connection from {0}'.format(addr)#打印发送连接消息
+    #conn.settimeout(500)
+    conn.send('Hi, Welcome to the server!')#把该信息发给客户端
+
+    while 1:  
+        fileinfo_size = struct.calcsize('128sl')#定义文件信息。128s表示文件名为128bytes长，l表示一个int或log文件类型，在此为文件大小
+        buf = conn.recv(fileinfo_size)#接收此文件的信息在buf里面
+        if buf: #如果不加这个if，第一个文件传输完成后会自动走到下一句，需要拿到文件大小信息才可以继续执行
+            filename, filesize = struct.unpack('128sl', buf) #解包，解开后是两个值
+            fn = filename.strip('\00') #解出文件名，去掉C语言中的字符串\00结束
+            new_filename = os.path.join('./', 'new_' + fn)#将多个路径组合后返回并赋给new_filename
+            print 'file new name is {0}, filesize if {1}'.format(new_filename,
+                                                                 filesize)#打印出新文件，包括名字和大小
+
+            recvd_size = 0  # 定义已接收文件的大小
+            fp = open(new_filename, 'wb')# 文件以二进制写模式打开 
+            print 'start receiving...'
+
+            while not recvd_size == filesize: #判断收到的和原有文件是不是一样大，不一样继续接收
+                if filesize - recvd_size > 1024:
+                    data = conn.recv(1024)#把接收的数据实例化
+                    recvd_size += len(data)
+                else:
+                    data = conn.recv(filesize - recvd_size) #接收到的文件和告知的一样大了，停止接收，判定为接收完毕
+                    recvd_size = filesize
+                fp.write(data)#写入数据
+            fp.close()#关闭文件
+            print 'end receive...'
+        conn.close()#关闭连接
+        break
+
+
+if __name__ == '__main__':
+    socket_service()
