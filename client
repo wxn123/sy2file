@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+# -*- coding=utf-8 -*-
+
+import socket
+import os
+import sys
+import struct
+
+
+def socket_client():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#创建TCP Socket
+        s.connect(('192.168.236.129', 6666))# 使用socket的connect连接到服务器（服务器的IP、端口号）
+    except socket.error as msg:
+        print msg
+        sys.exit(1)
+
+    print s.recv(1024)# 打印出从服务器返回的信息
+
+    while 1:
+        filepath = raw_input('please input file path: ')#把输入的要传输的文件存到filepath里
+        if os.path.isfile(filepath):
+            # 定义文件信息。128s表示文件名为128bytes长，l表示一个int或log文件类型，在此为文件大小
+            fileinfo_size = struct.calcsize('128sl')# 定义文件头信息，包含文件名和文件大小
+            fhead = struct.pack('128sl', os.path.basename(filepath),
+                                os.stat(filepath).st_size)#定义文件头信息，包含文件名和文件大小
+            s.send(fhead)#发送fhead到服务器
+            print 'client filepath: {0}'.format(filepath)#打印
+
+            fp = open(filepath, 'rb')# 文件以二进制读模式打开
+            while 1:
+                data = fp.read(1024)#把读的文件实例化（赋给data）
+                if not data:#如果没有data
+                    print '{0} file send over...'.format(filepath)#打印“XX文件传输完毕”
+                    break#退出循环
+                s.send(data)#发送数据到服务端
+        s.close()#关闭连接
+        break
+
+
+if __name__ == '__main__':
+    socket_client()
